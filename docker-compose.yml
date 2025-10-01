@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: receipt-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev   # or prod
+    container_name: frontend
+    ports:
+      - "5173:5173"   # dev mode
+      # - "80:80"     # prod mode (uncomment + comment dev line)
+    volumes:
+      - ./frontend:/app   # hot reload in dev mode
+    depends_on:
+      - backend

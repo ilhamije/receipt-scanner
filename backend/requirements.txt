@@ -4,5 +4,5 @@ psycopg2-binary
 sqlalchemy
 pydantic[dotenv]
 python-dotenv
+python-multipart
 requests
-
