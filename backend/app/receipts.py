@@ -1,3 +1,5 @@
+from fastapi import Query, Depends
+from typing import Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import extract
@@ -106,22 +108,34 @@ async def upload_receipt(
 
 
 # ─────────────────────────────
-# 2️⃣ LIST (with filters)
+# 2️⃣ LIST (with filters + pagination)
 # ─────────────────────────────
-@router.get("/", response_model=List[schemas.ReceiptRead])
+
+
+@router.get("/", response_model=schemas.PaginatedReceipts)
 def list_receipts(
     db: Session = Depends(get_db),
-    vendor: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
-    year: Optional[int] = Query(None),
-    month: Optional[int] = Query(None),
-    min_amount: Optional[float] = Query(None),
-    max_amount: Optional[float] = Query(None),
-    include_deleted: bool = Query(False),
+    vendor: Optional[str] = Query(
+        None, description="Filter by vendor name (contains)"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    year: Optional[int] = Query(
+        None, description="Filter by year (from expense_date)"),
+    month: Optional[int] = Query(
+        None, description="Filter by month (from expense_date)"),
+    min_amount: Optional[float] = Query(None, description="Minimum amount"),
+    max_amount: Optional[float] = Query(None, description="Maximum amount"),
+    include_deleted: bool = Query(
+        False, description="Include deleted receipts"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
 ):
+    # Base query
     query = db.query(models.Receipt)
+
     if not include_deleted:
-        query = query.filter(models.Receipt.deleted == False)
+        query = query.filter(models.Receipt.deleted.is_(False))
+
+    # Filters
     if vendor:
         query = query.filter(models.Receipt.vendor.ilike(f"%{vendor}%"))
     if category:
@@ -136,7 +150,24 @@ def list_receipts(
         query = query.filter(models.Receipt.amount >= min_amount)
     if max_amount:
         query = query.filter(models.Receipt.amount <= max_amount)
-    return query.order_by(models.Receipt.created_at.desc()).all()
+
+    # Total before pagination
+    total = query.count()
+
+    # Apply pagination
+    results = (
+        query.order_by(models.Receipt.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": results,
+    }
 
 
 # ─────────────────────────────

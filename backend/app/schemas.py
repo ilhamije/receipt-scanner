@@ -1,4 +1,5 @@
 # app/schemas.py
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
@@ -21,10 +22,23 @@ class ReceiptUpdate(ReceiptBase):
     pass
 
 
-class ReceiptRead(ReceiptBase):
+class ReceiptRead(BaseModel):
     id: str
+    vendor: Optional[str]
+    amount: Optional[float]
+    currency: str
+    category: Optional[str]
+    expense_date: Optional[datetime]
+    data: dict
     created_at: datetime
-    deleted: bool = False
+    deleted: bool
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # pydantic v2 replacement for orm_mode
+
+
+class PaginatedReceipts(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    results: List[ReceiptRead]
