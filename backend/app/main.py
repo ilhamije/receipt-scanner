@@ -1,17 +1,25 @@
-from fastapi import FastAPI
-from app.routers import upload, expenses
-from dotenv import load_dotenv
-import os
-
-# Load environment variables
-load_dotenv()
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
+from app.db import get_db
+from app import receipts
 
 app = FastAPI(title="Receipt Scanner API")
 
-# Register routers
-app.include_router(upload.router, prefix="/upload", tags=["upload"])
-app.include_router(expenses.router, prefix="/expenses", tags=["expenses"])
+# include your receipts router
+app.include_router(receipts.router)
 
-@app.get("/")
-def root():
-    return {"message": "Receipt Scanner API is running 🚀"}
+
+# ─────────────────────────────
+# ✅ Health check endpoint
+# ─────────────────────────────
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint to verify API and DB connectivity.
+    """
+    try:
+        # simple DB query to ensure connection is alive
+        db.execute("SELECT 1")
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        return {"status": "ok", "database": f"error: {str(e)}"}
