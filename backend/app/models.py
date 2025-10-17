@@ -1,3 +1,4 @@
+# app/models.py
 import shortuuid
 from sqlalchemy import Column, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
@@ -25,8 +26,6 @@ class Expense(Base):
     currency = Column(String, default="IDR")
     expense_date = Column(DateTime)
     category = Column(String, nullable=True)
-
     receipt_id = Column(String, ForeignKey("receipts.id", ondelete="CASCADE"))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
     receipt = relationship("Receipt", back_populates="expense")

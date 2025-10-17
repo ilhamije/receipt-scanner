@@ -46,7 +46,7 @@ async def upload_receipt(file: UploadFile = File(...), db: Session = Depends(get
             expense_date=datetime.fromisoformat(txn["date"])
             if txn.get("date")
             else None,
-            category=None,  # Optional – can use model inference later
+            category=None,
             receipt_id=receipt.id,
         )
 
