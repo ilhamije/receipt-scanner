@@ -1,30 +1,33 @@
-# ---- Base image ----
-FROM node:20-alpine AS base
+# frontend/Dockerfile
+# ---------- Build stage ----------
+FROM node:20-alpine AS build
 WORKDIR /app
+
+# Suppress npm update notices
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
+
+# Copy package files
 COPY package*.json ./
-RUN npm install
 
-# ---- Development mode ----
-FROM base AS dev
-WORKDIR /app
+# Install dependencies (clean + reproducible)
+RUN npm ci
+
+# Copy source code
 COPY . .
-EXPOSE 5173
-# Run Vite dev server on 0.0.0.0 so host can access
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
-
-# ---- Production build ----
-FROM base AS builder
-WORKDIR /app
-COPY . .
+# Build the React app (Vite)
 RUN npm run build:dev
 
-# ---- Production server ----
-FROM nginx:alpine AS prod
-WORKDIR /usr/share/nginx/html
-RUN rm -rf ./*
-COPY --from=builder /app/dist ./
-# Optional: custom Nginx config for SPA routing
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# ---------- Runtime stage ----------
+FROM nginx:1.27-alpine
+
+# Copy build output into standard nginx html dir
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Copy nginx config
+COPY nginx/dev.conf /etc/nginx/conf.d/default.conf
+
+# Expose port
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]
