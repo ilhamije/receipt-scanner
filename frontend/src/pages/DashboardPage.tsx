@@ -1,3 +1,4 @@
+// src/pages/DashboardPage.tsx
 import React from "react";
 import { BarChart3, FileText, CreditCard } from "lucide-react";
 

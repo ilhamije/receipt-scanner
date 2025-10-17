@@ -1,3 +1,4 @@
+// src/pages/LandingPage.tsx
 import React, { useState } from "react";
 import { uploadReceipt } from "../services/api";
 import { useNavigate } from "react-router-dom";

@@ -1,3 +1,4 @@
+// src/pages/ReceiptDetail.tsx
 import React from "react";
 import { X } from "lucide-react";
 import type { Receipt } from "./ReceiptList";
@@ -6,6 +7,15 @@ interface Props {
     receipt: Receipt;
     onClose: () => void;
 }
+
+// useEffect(() => {
+//     const handleEsc = (e: KeyboardEvent) => {
+//         if (e.key === "Escape") onClose();
+//     };
+//     window.addEventListener("keydown", handleEsc);
+//     return () => window.removeEventListener("keydown", handleEsc);
+// }, [onClose]);
+
 
 export const ReceiptDetail: React.FC<Props> = ({ receipt, onClose }) => {
     const d = receipt.data || {};

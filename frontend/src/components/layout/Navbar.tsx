@@ -1,3 +1,4 @@
+// src/components/layout/Navbar.tsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { isLoggedIn, clearSession } from "../../utils/auth";
 

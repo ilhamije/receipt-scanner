@@ -1,6 +1,6 @@
+// src/pages/ReceiptList.tsx
 import React, { useState } from "react";
 import { ReceiptDetail } from "./ReceiptDetail";
-
 
 export interface Receipt {
     id: string;
@@ -24,7 +24,7 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
     if (!receipts || receipts.length === 0) {
         return (
             <p className="text-center text-gray-500 mt-8">
-                No receipts found yet. Try uploading one!
+                No receipts found yet. Try uploading one.
             </p>
         );
     }
@@ -39,6 +39,7 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                         }`}
                 >
                     <div className="flex justify-between items-start">
+                        {/* Left Section */}
                         <div>
                             <p className="font-semibold text-lg">
                                 {r.vendor ?? "Unknown Vendor"}
@@ -53,6 +54,7 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                             )}
                         </div>
 
+                        {/* Right Section */}
                         {r.amount ? (
                             <p className="text-right text-green-700 font-semibold">
                                 {r.currency} {r.amount.toLocaleString()}
@@ -73,7 +75,7 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                 </div>
             ))}
 
-            {/* Modal for detail view */}
+            {/* Detail Modal */}
             {selected && (
                 <ReceiptDetail receipt={selected} onClose={() => setSelected(null)} />
             )}
