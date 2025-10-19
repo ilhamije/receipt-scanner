@@ -21,17 +21,25 @@ interface Props {
 export const ReceiptList: React.FC<Props> = ({ receipts }) => {
     const [selected, setSelected] = useState<Receipt | null>(null);
 
-    if (!receipts || receipts.length === 0) {
+    // 🔍 Filter out receipts that failed OCR or are incomplete
+    const validReceipts = receipts.filter((r) => {
+        const hasError = !!r.data?.error;
+        const hasVendor = !!r.vendor;
+        const hasAmount = r.amount !== null && r.amount !== undefined;
+        return !hasError && (hasVendor || hasAmount);
+    });
+
+    if (!validReceipts || validReceipts.length === 0) {
         return (
             <p className="text-center text-gray-500 mt-8">
-                No receipts found yet. Try uploading one.
+                No valid receipts found yet. Try uploading one.
             </p>
         );
     }
 
     return (
         <div className="space-y-3">
-            {receipts.map((r) => (
+            {validReceipts.map((r) => (
                 <div
                     key={r.id}
                     onClick={() => setSelected(r)}
@@ -49,7 +57,10 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                             </p>
                             {r.category && (
                                 <p className="text-xs text-gray-600 mt-1">
-                                    Category: <span className="font-medium">{r.category}</span>
+                                    Category:{" "}
+                                    <span className="font-medium">
+                                        {r.category}
+                                    </span>
                                 </p>
                             )}
                         </div>
@@ -60,24 +71,20 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                                 {r.currency} {r.amount.toLocaleString()}
                             </p>
                         ) : (
-                            <p className="text-right text-sm text-red-500 font-medium">
-                                OCR Error
+                            <p className="text-right text-sm text-gray-400 font-medium">
+                                —
                             </p>
                         )}
                     </div>
-
-                    {/* Optional OCR error message */}
-                    {r.data?.error && (
-                        <p className="text-red-500 text-xs mt-2 border-t pt-2">
-                            {r.data.error}
-                        </p>
-                    )}
                 </div>
             ))}
 
             {/* Detail Modal */}
             {selected && (
-                <ReceiptDetail receipt={selected} onClose={() => setSelected(null)} />
+                <ReceiptDetail
+                    receipt={selected}
+                    onClose={() => setSelected(null)}
+                />
             )}
         </div>
     );

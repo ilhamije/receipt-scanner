@@ -45,6 +45,8 @@ export default function ReceiptsPage() {
         alert("Receipt saved to your account!");
     };
 
+    console.log('data:', data)
+
     return (
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
             <h1 className="text-2xl font-bold mb-2 flex items-center gap-2">

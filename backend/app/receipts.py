@@ -1,9 +1,7 @@
-from fastapi import Query, Depends
-from typing import Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks, Query
+from fastapi import Query, Depends, APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import extract
-from typing import List, Optional
+from sqlalchemy import extract, or_
+from typing import Optional
 from datetime import datetime
 import shortuuid
 import asyncio
@@ -26,10 +24,7 @@ def process_receipt_ocr(db: Session, file_bytes: bytes, filename: str, mime: str
     async def run_ocr():
         try:
             ocr_text = await extract_receipt_text(file_bytes, filename, mime)
-            print('ocr_text: ', ocr_text)
-
             parsed = await parse_receipt_to_json(ocr_text)
-            print('parsed: ', parsed)
 
             receipt = db.query(models.Receipt).filter_by(id=receipt_id).first()
             if not receipt:
@@ -54,8 +49,6 @@ def process_receipt_ocr(db: Session, file_bytes: bytes, filename: str, mime: str
             receipt.expense_date = expense_date
             receipt.category = None
             receipt.data = parsed
-            print('receipt: ', receipt)
-
             db.commit()
 
         except Exception as e:
@@ -81,37 +74,30 @@ async def upload_receipt(
     Step 2: Trigger background OCR task (non-blocking).
     """
     try:
-        # Save placeholder record
         new_receipt = models.Receipt(
             id=shortuuid.uuid(),
             data={"status": "processing", "source_image": file.filename},
         )
-        print('receipt processed')
         db.add(new_receipt)
         db.commit()
         db.refresh(new_receipt)
-        print('database stored')
 
-        # Schedule OCR task
-        print('scheduling the OCR')
+        # Schedule OCR
         file_bytes = await file.read()
         background_tasks.add_task(
-            process_receipt_ocr, db, file_bytes, file.filename, file.content_type, new_receipt.id)
-        print('background task added')
+            process_receipt_ocr, db, file_bytes, file.filename, file.content_type, new_receipt.id
+        )
 
         return new_receipt
 
     except Exception as e:
-        print('the heck?')
         raise HTTPException(
             status_code=500, detail=f"Receipt upload failed: {e}")
 
 
 # ─────────────────────────────
-# 2️⃣ LIST (with filters + pagination)
+# 2️⃣ LIST (Hide failed OCR)
 # ─────────────────────────────
-
-
 @router.get("/", response_model=schemas.PaginatedReceipts)
 def list_receipts(
     db: Session = Depends(get_db),
@@ -126,14 +112,25 @@ def list_receipts(
     max_amount: Optional[float] = Query(None, description="Maximum amount"),
     include_deleted: bool = Query(
         False, description="Include deleted receipts"),
+    hide_failed: bool = Query(
+        True, description="Hide receipts with OCR errors"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
 ):
-    # Base query
     query = db.query(models.Receipt)
 
     if not include_deleted:
         query = query.filter(models.Receipt.deleted.is_(False))
+
+    # Hide OCR failed or incomplete records
+    if hide_failed:
+        query = query.filter(
+            or_(
+                models.Receipt.data["error"].is_(None),
+                models.Receipt.data["error"] == "",
+            ),
+            models.Receipt.vendor.isnot(None),
+        )
 
     # Filters
     if vendor:
@@ -151,10 +148,7 @@ def list_receipts(
     if max_amount:
         query = query.filter(models.Receipt.amount <= max_amount)
 
-    # Total before pagination
     total = query.count()
-
-    # Apply pagination
     results = (
         query.order_by(models.Receipt.created_at.desc())
         .offset(offset)
@@ -162,12 +156,7 @@ def list_receipts(
         .all()
     )
 
-    return {
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "results": results,
-    }
+    return {"total": total, "limit": limit, "offset": offset, "results": results}
 
 
 # ─────────────────────────────
