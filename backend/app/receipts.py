@@ -1,3 +1,7 @@
+from sqlalchemy import extract, or_, cast, String
+from sqlalchemy.sql import and_, or_
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import text
 from fastapi import Query, Depends, APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import extract, or_
@@ -101,38 +105,33 @@ async def upload_receipt(
 @router.get("/", response_model=schemas.PaginatedReceipts)
 def list_receipts(
     db: Session = Depends(get_db),
-    vendor: Optional[str] = Query(
-        None, description="Filter by vendor name (contains)"),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    year: Optional[int] = Query(
-        None, description="Filter by year (from expense_date)"),
-    month: Optional[int] = Query(
-        None, description="Filter by month (from expense_date)"),
-    min_amount: Optional[float] = Query(None, description="Minimum amount"),
-    max_amount: Optional[float] = Query(None, description="Maximum amount"),
-    include_deleted: bool = Query(
-        False, description="Include deleted receipts"),
-    hide_failed: bool = Query(
-        True, description="Hide receipts with OCR errors"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
+    vendor: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    year: Optional[int] = Query(None),
+    month: Optional[int] = Query(None),
+    min_amount: Optional[float] = Query(None),
+    max_amount: Optional[float] = Query(None),
+    include_deleted: bool = Query(False),
+    hide_failed: bool = Query(True),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
 ):
     query = db.query(models.Receipt)
 
     if not include_deleted:
         query = query.filter(models.Receipt.deleted.is_(False))
 
-    # Hide OCR failed or incomplete records
+    # ✅ Fixed JSONB filter for SQLAlchemy 2.x
     if hide_failed:
         query = query.filter(
             or_(
-                models.Receipt.data["error"].is_(None),
-                models.Receipt.data["error"] == "",
+                cast(models.Receipt.data["error"], String).is_(None),
+                cast(models.Receipt.data["error"], String) == "",
             ),
             models.Receipt.vendor.isnot(None),
         )
 
-    # Filters
+    # Additional filters
     if vendor:
         query = query.filter(models.Receipt.vendor.ilike(f"%{vendor}%"))
     if category:
