@@ -25,6 +25,8 @@ export default function ReceiptsPage() {
         const formData = new FormData();
         formData.append("file", file);
 
+        console.log('file:', file)
+
         try {
             const res = await uploadReceipt(formData);
             setParsed(res.data);

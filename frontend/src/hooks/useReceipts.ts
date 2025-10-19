@@ -13,13 +13,11 @@ export const useReceipts = (filters: Record<string, any> = {}) => {
         setLoading(true);
         getReceipts({ limit: 10, offset: page * 10, ...filters })
             .then((res) => {
-                // Ensure res.data has the correct structure
                 const { results, total } = res.data;
                 if (Array.isArray(results)) {
                     setData(results);
-                    setTotal(total || results.length);
+                    setTotal(total ?? results.length);
                 } else if (Array.isArray(res.data)) {
-                    // fallback if backend returns raw list
                     setData(res.data);
                     setTotal(res.data.length);
                 } else {
