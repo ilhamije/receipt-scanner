@@ -151,7 +151,7 @@ export default function ReceiptsPage() {
                 {loading ? (
                     <p className="text-gray-500 text-center mt-8">Loading receipts...</p>
                 ) : (
-                    <ReceiptList receipts={data} onEdit={handleEditReceipt} /> // ✅ pass handler
+                    <ReceiptList receipts={data} onEdit={handleEditReceipt} refetch={refetch} />
                 )}
 
                 {/* Pagination */}

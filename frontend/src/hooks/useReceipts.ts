@@ -1,5 +1,5 @@
 // src/hooks/useReceipts.ts
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getReceipts } from "../services/api";
 import type { Receipt } from "../pages/ReceiptList";
 
@@ -9,28 +9,32 @@ export const useReceipts = (filters: Record<string, any> = {}) => {
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        getReceipts({ limit: 10, offset: page * 10, ...filters })
-            .then((res) => {
-                const { results, total } = res.data;
-                if (Array.isArray(results)) {
-                    setData(results);
-                    setTotal(total ?? results.length);
-                } else if (Array.isArray(res.data)) {
-                    setData(res.data);
-                    setTotal(res.data.length);
-                } else {
-                    setData([]);
-                    setTotal(0);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to load receipts:", err);
+        try {
+            const res = await getReceipts({ limit: 10, offset: page * 10, ...filters });
+            const { results, total } = res.data || {};
+            if (Array.isArray(results)) {
+                setData(results);
+                setTotal(total ?? results.length);
+            } else if (Array.isArray(res.data)) {
+                setData(res.data);
+                setTotal(res.data.length);
+            } else {
                 setData([]);
-            })
-            .finally(() => setLoading(false));
+                setTotal(0);
+            }
+        } catch (err) {
+            console.error("Failed to load receipts:", err);
+            setData([]);
+        } finally {
+            setLoading(false);
+        }
     }, [page, JSON.stringify(filters)]);
 
-    return { data, total, page, setPage, loading };
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    return { data, total, page, setPage, loading, refetch: fetchData };
 };

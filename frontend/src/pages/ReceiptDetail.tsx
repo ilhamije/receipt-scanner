@@ -1,182 +1,178 @@
 // src/pages/ReceiptDetail.tsx
-import React from "react";
-import { X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import { deleteReceipt } from "../services/api"; // ✅ centralized API
 import type { Receipt } from "./ReceiptList";
 
-interface Props {
+interface ReceiptDetailProps {
     receipt: Receipt;
     onClose: () => void;
+    onUpdated?: () => void; // trigger refresh from parent
+    onEdit?: (receipt: Receipt) => void; // optional — open update modal
 }
 
-// useEffect(() => {
-//     const handleEsc = (e: KeyboardEvent) => {
-//         if (e.key === "Escape") onClose();
-//     };
-//     window.addEventListener("keydown", handleEsc);
-//     return () => window.removeEventListener("keydown", handleEsc);
-// }, [onClose]);
+export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
+    receipt,
+    onClose,
+    onUpdated,
+    onEdit,
+}) => {
+    const modalRef = useRef<HTMLDivElement | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
+    // ESC to close
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+        document.addEventListener("keydown", handleEsc);
+        return () => document.removeEventListener("keydown", handleEsc);
+    }, [onClose]);
 
-export const ReceiptDetail: React.FC<Props> = ({ receipt, onClose }) => {
-    const d = receipt.data || {};
-    const items = d.items || d.transaction?.items || [];
+    // Click outside to close
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [onClose]);
+
+    const handleDelete = async () => {
+        setDeleting(true);
+        try {
+            await deleteReceipt(receipt.id);
+            toast.success("Receipt deleted successfully");
+            if (onUpdated) onUpdated();
+            onClose();
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to delete receipt");
+        } finally {
+            setDeleting(false);
+            setConfirmDelete(false);
+        }
+    };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center p-3">
-            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-lg overflow-hidden">
+        <div
+            className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50"
+            aria-modal="true"
+            role="dialog"
+        >
+            <div
+                ref={modalRef}
+                className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 relative"
+            >
                 {/* Header */}
-                <div className="flex justify-between items-center border-b p-4 sticky top-0 bg-white z-10">
-                    <h2 className="text-xl font-semibold">
-                        {receipt.vendor ?? "Receipt Details"}
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold text-gray-800">
+                        Receipt Details
                     </h2>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-700 transition"
+                        className="text-gray-500 hover:text-gray-700 text-xl leading-none"
                     >
-                        <X size={20} />
+                        ×
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="p-4 overflow-y-auto max-h-[80vh] space-y-4 text-sm">
-                    {/* Meta Info */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <span className="font-medium text-gray-700">Created At:</span>
-                            <div className="text-gray-600">
-                                {new Date(receipt.created_at).toLocaleString()}
-                            </div>
-                        </div>
-                        <div>
-                            <span className="font-medium text-gray-700">Payment:</span>
-                            <div className="text-gray-600">
-                                {d.payment_method ??
-                                    d.transaction?.summary?.payment_method ??
-                                    "-"}
-                            </div>
-                        </div>
-                        <div>
-                            <span className="font-medium text-gray-700">Currency:</span>
-                            <div className="text-gray-600">
-                                {d.currency ??
-                                    d.transaction?.summary?.currency ??
-                                    receipt.currency ??
-                                    "-"}
-                            </div>
-                        </div>
-                        <div>
-                            <span className="font-medium text-gray-700">Table:</span>
-                            <div className="text-gray-600">{d.table_number ?? "-"}</div>
-                        </div>
+                <div className="space-y-3 text-sm text-gray-700">
+                    <div className="flex justify-between">
+                        <span className="font-medium">Vendor:</span>
+                        <span>{receipt.vendor || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Amount:</span>
+                        <span>
+                            {receipt.currency}{" "}
+                            {receipt.amount
+                                ? receipt.amount.toLocaleString()
+                                : "—"}
+                        </span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Category:</span>
+                        <span>{receipt.category || "—"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Expense Date:</span>
+                        <span>
+                            {receipt.expense_date
+                                ? new Date(receipt.expense_date).toLocaleDateString()
+                                : "—"}
+                        </span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="font-medium">Created At:</span>
+                        <span>
+                            {new Date(receipt.created_at).toLocaleString()}
+                        </span>
                     </div>
 
-                    {/* Address & Vendor Info */}
-                    <div>
-                        {d.address && (
-                            <p className="text-gray-700">
-                                <span className="font-medium">Address:</span> {d.address}
-                            </p>
-                        )}
-                        {d.phone && (
-                            <p className="text-gray-700">
-                                <span className="font-medium">Phone:</span> {d.phone}
-                            </p>
-                        )}
-                    </div>
+                    {/* Optional parsed details */}
+                    {receipt.data?.parsed?.transaction?.items?.length > 0 && (
+                        <div className="mt-4">
+                            <p className="font-medium mb-1">Items:</p>
+                            <ul className="list-disc list-inside text-gray-600 text-sm">
+                                {receipt.data.parsed.transaction.items.map((item: any, i: number) => (
+                                    <li key={i}>
+                                        {item.name} — {item.category || "General"} ({item.quantity || 1}×)
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
 
-                    {/* Totals */}
-                    <div className="grid grid-cols-3 gap-3 border-t border-b py-3">
-                        <div>
-                            <p className="text-gray-500 text-xs">Subtotal</p>
-                            <p className="font-semibold">
-                                {d.currency ?? "IDR"}{" "}
-                                {(
-                                    d.subtotal ??
-                                    d.transaction?.summary?.total_items ??
-                                    0
-                                ).toLocaleString()}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 text-xs">Tax</p>
-                            <p className="font-semibold">
-                                {d.currency ?? "IDR"}{" "}
-                                {(d.tax ?? d.transaction?.summary?.ppn ?? 0).toLocaleString()}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-gray-500 text-xs">Total</p>
-                            <p className="font-semibold text-green-700">
-                                {d.currency ?? "IDR"}{" "}
-                                {(
-                                    d.total ??
-                                    d.transaction?.summary?.total_amount ??
-                                    receipt.amount ??
-                                    0
-                                ).toLocaleString()}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* Items */}
-                    {items.length > 0 ? (
-                        <div>
-                            <h3 className="text-md font-semibold mb-2 border-b pb-1">
-                                Items
-                            </h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full border-collapse text-sm">
-                                    <thead className="bg-gray-100 text-gray-700">
-                                        <tr>
-                                            <th className="text-left p-2">Name</th>
-                                            <th className="text-center p-2">Qty</th>
-                                            <th className="text-right p-2">Total</th>
-                                            <th className="text-center p-2">Category</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {items.map((it: any, idx: number) => (
-                                            <tr
-                                                key={idx}
-                                                className="border-b hover:bg-gray-50 transition"
-                                            >
-                                                <td className="p-2">{it.name ?? "-"}</td>
-                                                <td className="p-2 text-center">
-                                                    {it.quantity ?? 1}
-                                                </td>
-                                                <td className="p-2 text-right">
-                                                    {it.total_price
-                                                        ? it.total_price.toLocaleString()
-                                                        : "-"}
-                                                </td>
-                                                <td className="p-2 text-center text-gray-600">
-                                                    {it.category ?? "-"}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                {/* Footer actions */}
+                <div className="flex justify-end space-x-3 mt-6">
+                    {confirmDelete ? (
+                        <>
+                            <button
+                                onClick={() => setConfirmDelete(false)}
+                                className="px-4 py-2 border rounded-md text-gray-600 hover:bg-gray-100"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deleting}
+                                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {deleting ? "Deleting..." : "Confirm Delete"}
+                            </button>
+                        </>
                     ) : (
-                        <p className="text-gray-500 italic">No items detected.</p>
-                    )}
-
-                    {/* Notes */}
-                    {d.notes && (
-                        <div className="bg-yellow-50 border-l-4 border-yellow-300 p-3 rounded-md text-gray-700 text-sm">
-                            <strong>Notes:</strong> {d.notes}
-                        </div>
-                    )}
-
-                    {/* OCR Error */}
-                    {d.error && (
-                        <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-md text-red-600 text-sm">
-                            <strong>OCR Error:</strong> {d.error}
-                        </div>
+                        <>
+                            {onEdit && (
+                                <button
+                                    onClick={() => onEdit(receipt)}
+                                    className="px-4 py-2 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50"
+                                >
+                                    Edit
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setConfirmDelete(true)}
+                                className="px-4 py-2 rounded-md border border-red-500 text-red-600 hover:bg-red-50"
+                            >
+                                Delete
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            >
+                                Close
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
         </div>
     );
 };
+
+export default ReceiptDetail;

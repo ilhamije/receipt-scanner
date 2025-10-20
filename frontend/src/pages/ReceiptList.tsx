@@ -16,13 +16,13 @@ export interface Receipt {
 
 interface Props {
     receipts: Receipt[];
-    onEdit?: (receipt: Receipt) => void; // ✅ new prop for edit modal
+    onEdit?: (receipt: Receipt) => void;
+    refetch?: () => void; // ✅ add this
 }
 
-export const ReceiptList: React.FC<Props> = ({ receipts, onEdit }) => {
+export const ReceiptList: React.FC<Props> = ({ receipts, onEdit, refetch }) => {
     const [selected, setSelected] = useState<Receipt | null>(null);
 
-    // 🔍 Filter out receipts that failed OCR or are incomplete
     const validReceipts = receipts.filter((r) => {
         const hasError = !!r.data?.error;
         const hasVendor = !!r.vendor;
@@ -47,26 +47,16 @@ export const ReceiptList: React.FC<Props> = ({ receipts, onEdit }) => {
                         }`}
                 >
                     <div className="flex justify-between items-start">
-                        {/* Left Section */}
-                        <div
-                            className="flex-1 cursor-pointer"
-                            onClick={() => setSelected(r)}
-                        >
-                            <p className="font-semibold text-lg">
-                                {r.vendor ?? "Unknown Vendor"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                                {new Date(r.created_at).toLocaleString()}
-                            </p>
+                        <div className="flex-1 cursor-pointer" onClick={() => setSelected(r)}>
+                            <p className="font-semibold text-lg">{r.vendor ?? "Unknown Vendor"}</p>
+                            <p className="text-xs text-gray-500">{new Date(r.created_at).toLocaleString()}</p>
                             {r.category && (
                                 <p className="text-xs text-gray-600 mt-1">
-                                    Category:{" "}
-                                    <span className="font-medium">{r.category}</span>
+                                    Category: <span className="font-medium">{r.category}</span>
                                 </p>
                             )}
                         </div>
 
-                        {/* Right Section */}
                         <div className="text-right flex flex-col items-end gap-2">
                             {r.amount ? (
                                 <p className="text-green-700 font-semibold">
@@ -76,7 +66,6 @@ export const ReceiptList: React.FC<Props> = ({ receipts, onEdit }) => {
                                 <p className="text-sm text-gray-400 font-medium">—</p>
                             )}
 
-                            {/* ✅ Edit button */}
                             {onEdit && (
                                 <button
                                     onClick={() => onEdit(r)}
@@ -90,9 +79,13 @@ export const ReceiptList: React.FC<Props> = ({ receipts, onEdit }) => {
                 </div>
             ))}
 
-            {/* Detail Modal */}
             {selected && (
-                <ReceiptDetail receipt={selected} onClose={() => setSelected(null)} />
+                <ReceiptDetail
+                    receipt={selected}
+                    onClose={() => setSelected(null)}
+                    onEdit={(r) => onEdit && onEdit(r)}
+                    onUpdated={refetch} // ✅ now passed in via props
+                />
             )}
         </div>
     );

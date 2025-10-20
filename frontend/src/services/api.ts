@@ -16,4 +16,10 @@ export const uploadReceipt = (formData: FormData) =>
         headers: { "Content-Type": "multipart/form-data" },
     });
 
+// Update an existing receipt (PATCH)
+export const updateReceipt = (id: string, payload: Record<string, any>) =>
+    api.patch(`/receipts/${id}`, payload);
+
+export const deleteReceipt = (id: string) => api.delete(`/receipts/${id}`);
+
 export default api;
