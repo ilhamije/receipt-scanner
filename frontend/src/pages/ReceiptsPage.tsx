@@ -6,15 +6,20 @@ import { ReceiptList } from "../pages/ReceiptList";
 import { ReceiptFilterBar } from "../pages/ReceiptFilterBar";
 import { isLoggedIn, requireLogin } from "../utils/auth";
 import { FileUp, Receipt, Loader2 } from "lucide-react";
+import { ReceiptUpdateModal } from "./ReceiptUpdate";
 
 export default function ReceiptsPage() {
     const [filters, setFilters] = useState({});
-    const { data, total, page, setPage, loading } = useReceipts(filters);
+    const { data, total, page, setPage, loading, refetch } = useReceipts(filters);
 
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [parsed, setParsed] = useState<any>(null);
+
+    // ✅ Modal state
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
 
     const handleUpload = async () => {
         if (!file) return;
@@ -24,8 +29,6 @@ export default function ReceiptsPage() {
 
         const formData = new FormData();
         formData.append("file", file);
-
-        console.log('file:', file)
 
         try {
             const res = await uploadReceipt(formData);
@@ -47,7 +50,20 @@ export default function ReceiptsPage() {
         alert("Receipt saved to your account!");
     };
 
-    console.log('data:', data)
+    // ✅ Open edit modal from list
+    const handleEditReceipt = (receipt: any) => {
+        setSelectedReceipt(receipt);
+        setModalOpen(true);
+    };
+
+    // ✅ Refresh list after update
+    const handleUpdated = () => {
+        setModalOpen(false);
+        setTimeout(() => {
+            if (refetch) refetch();
+            else setPage(0);
+        }, 300);
+    };
 
     return (
         <div className="max-w-6xl mx-auto px-4 py-6 space-y-8">
@@ -99,37 +115,18 @@ export default function ReceiptsPage() {
 
                     <div className="grid sm:grid-cols-2 gap-3 text-sm text-gray-700">
                         <p>
-                            <b>Vendor:</b> {parsed.parsed?.vendor?.name ?? parsed.vendor ?? "-"}
+                            <b>Vendor:</b> {parsed.vendor ?? "-"}
                         </p>
                         <p>
-                            <b>Total:</b>{" "}
-                            {parsed.parsed?.transaction?.summary?.total_amount ??
-                                parsed.amount ??
-                                "-"}
+                            <b>Total:</b> {parsed.amount ?? "-"}
                         </p>
                         <p>
-                            <b>Payment:</b>{" "}
-                            {parsed.parsed?.transaction?.summary?.payment_method ?? "-"}
+                            <b>Currency:</b> {parsed.currency ?? "-"}
                         </p>
                         <p>
-                            <b>Confidence:</b> {parsed.parsed?.meta?.parse_confidence ?? "-"}
+                            <b>Date:</b> {parsed.expense_date ?? "-"}
                         </p>
                     </div>
-
-                    {parsed.parsed?.transaction?.items?.length > 0 && (
-                        <div className="mt-4">
-                            <h3 className="font-semibold text-sm mb-2 text-gray-800">
-                                Items
-                            </h3>
-                            <ul className="text-sm text-gray-700 list-disc list-inside">
-                                {parsed.parsed.transaction.items.map((item: any, idx: number) => (
-                                    <li key={idx}>
-                                        {item.name} — {item.category} ({item.quantity || 1}x)
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
 
                     <div className="mt-5 flex justify-end">
                         <button
@@ -154,7 +151,7 @@ export default function ReceiptsPage() {
                 {loading ? (
                     <p className="text-gray-500 text-center mt-8">Loading receipts...</p>
                 ) : (
-                    <ReceiptList receipts={data} />
+                    <ReceiptList receipts={data} onEdit={handleEditReceipt} /> // ✅ pass handler
                 )}
 
                 {/* Pagination */}
@@ -175,6 +172,15 @@ export default function ReceiptsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* ✅ Update Modal */}
+            <ReceiptUpdateModal
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                receiptId={selectedReceipt?.id}
+                initialData={selectedReceipt}
+                onUpdated={handleUpdated}
+            />
         </div>
     );
 }

@@ -12,11 +12,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.9",
     "@supabase/supabase-js": "^2.58.0",
     "axios": "^1.12.2",
     "lucide-react": "^0.546.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.9.4",
     "vite-plugin-pwa": "^1.0.3"
   },

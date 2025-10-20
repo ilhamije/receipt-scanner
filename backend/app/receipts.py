@@ -197,43 +197,42 @@ def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
 # ─────────────────────────────
 @router.patch("/{receipt_id}")
 def update_receipt(receipt_id: str, payload: schemas.ReceiptUpdate, db: Session = Depends(get_db)):
+    """
+    Update Receipt
+    """
     receipt = db.query(models.Receipt).filter(
         models.Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
 
-    # Get current data structure
-    new_data = receipt.data.copy() if receipt.data else {}
-    parsed = new_data.get("parsed", {})
-    transaction = parsed.get("transaction", {})
-    summary = transaction.get("summary", {})
-
-    # Only apply provided fields
     updates = payload.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(
             status_code=400, detail="No valid fields provided for update")
 
-    # Keep everything flat (single source of truth)
+    # ✅ Clone the JSON safely
+    new_data = dict(receipt.data or {})
+
     for key, value in updates.items():
-        setattr(receipt, key, value)          # Update SQL columns directly
-        # Mirror into JSONB for frontend display if needed
+        # Convert datetime to string for JSON safety
+        if isinstance(value, datetime):
+            value = value.isoformat()
+
+        # ✅ Update SQL columns if they exist
+        if hasattr(receipt, key):
+            setattr(receipt, key, value)
+
+        # ✅ Update JSON representation
         new_data[key] = value
 
-        # Optionally keep nested summary if you want to preserve parsed structure
-        if key in ["amount", "currency", "category", "expense_date"]:
-            summary[key] = value
-
-    # Sync nested structures (optional)
-    transaction["summary"] = summary
-    parsed["transaction"] = transaction
-    new_data["parsed"] = parsed
+    # Assign cleaned JSON back
     receipt.data = new_data
 
     db.commit()
     db.refresh(receipt)
 
     return {"message": "Receipt updated successfully", "receipt": receipt.data}
+
 
 # ─────────────────────────────
 # 5️⃣ SOFT DELETE

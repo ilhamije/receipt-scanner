@@ -16,9 +16,10 @@ export interface Receipt {
 
 interface Props {
     receipts: Receipt[];
+    onEdit?: (receipt: Receipt) => void; // ✅ new prop for edit modal
 }
 
-export const ReceiptList: React.FC<Props> = ({ receipts }) => {
+export const ReceiptList: React.FC<Props> = ({ receipts, onEdit }) => {
     const [selected, setSelected] = useState<Receipt | null>(null);
 
     // 🔍 Filter out receipts that failed OCR or are incomplete
@@ -42,13 +43,15 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
             {validReceipts.map((r) => (
                 <div
                     key={r.id}
-                    onClick={() => setSelected(r)}
-                    className={`p-4 rounded-xl border shadow-sm transition cursor-pointer hover:shadow-md ${r.deleted ? "opacity-60 bg-gray-50" : "bg-white"
+                    className={`p-4 rounded-xl border shadow-sm transition hover:shadow-md ${r.deleted ? "opacity-60 bg-gray-50" : "bg-white"
                         }`}
                 >
                     <div className="flex justify-between items-start">
                         {/* Left Section */}
-                        <div>
+                        <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setSelected(r)}
+                        >
                             <p className="font-semibold text-lg">
                                 {r.vendor ?? "Unknown Vendor"}
                             </p>
@@ -58,33 +61,38 @@ export const ReceiptList: React.FC<Props> = ({ receipts }) => {
                             {r.category && (
                                 <p className="text-xs text-gray-600 mt-1">
                                     Category:{" "}
-                                    <span className="font-medium">
-                                        {r.category}
-                                    </span>
+                                    <span className="font-medium">{r.category}</span>
                                 </p>
                             )}
                         </div>
 
                         {/* Right Section */}
-                        {r.amount ? (
-                            <p className="text-right text-green-700 font-semibold">
-                                {r.currency} {r.amount.toLocaleString()}
-                            </p>
-                        ) : (
-                            <p className="text-right text-sm text-gray-400 font-medium">
-                                —
-                            </p>
-                        )}
+                        <div className="text-right flex flex-col items-end gap-2">
+                            {r.amount ? (
+                                <p className="text-green-700 font-semibold">
+                                    {r.currency} {r.amount.toLocaleString()}
+                                </p>
+                            ) : (
+                                <p className="text-sm text-gray-400 font-medium">—</p>
+                            )}
+
+                            {/* ✅ Edit button */}
+                            {onEdit && (
+                                <button
+                                    onClick={() => onEdit(r)}
+                                    className="text-sm text-blue-600 hover:underline"
+                                >
+                                    Edit
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             ))}
 
             {/* Detail Modal */}
             {selected && (
-                <ReceiptDetail
-                    receipt={selected}
-                    onClose={() => setSelected(null)}
-                />
+                <ReceiptDetail receipt={selected} onClose={() => setSelected(null)} />
             )}
         </div>
     );
