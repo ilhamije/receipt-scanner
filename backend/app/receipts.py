@@ -23,7 +23,7 @@ router = APIRouter(prefix="/receipts", tags=["Receipts"])
 def process_receipt_ocr(db: Session, file_bytes: bytes, filename: str, mime: str, receipt_id: str):
     """
     Background task: performs OCR + JSON parsing asynchronously,
-    then updates the existing DB record.
+    then updates the existing DB record (flat schema, single currency field).
     """
     async def run_ocr():
         try:
@@ -35,9 +35,11 @@ def process_receipt_ocr(db: Session, file_bytes: bytes, filename: str, mime: str
                 return
 
             vendor = parsed.get("vendor")
-            total = parsed.get("total")
+            amount = parsed.get("total")
             currency = parsed.get("currency", "IDR")
             date_str = parsed.get("date")
+            category = parsed.get("category")
+            items = parsed.get("items", [])
 
             expense_date = None
             if date_str:
@@ -46,19 +48,30 @@ def process_receipt_ocr(db: Session, file_bytes: bytes, filename: str, mime: str
                 except Exception:
                     expense_date = None
 
-            # Update record
+            # ✅ Flatten everything: no nested parsed.currency anymore
             receipt.vendor = vendor
-            receipt.amount = total
+            receipt.amount = amount
             receipt.currency = currency
             receipt.expense_date = expense_date
-            receipt.category = None
-            receipt.data = parsed
+            receipt.category = category
+
+            receipt.data = {
+                "vendor": vendor,
+                "amount": amount,
+                "currency": currency,
+                "expense_date": date_str,
+                "category": category,
+                "items": items,
+                "status": "parsed",
+                "source_image": filename,
+            }
+
             db.commit()
 
         except Exception as e:
             receipt = db.query(models.Receipt).filter_by(id=receipt_id).first()
             if receipt:
-                receipt.data = {"error": str(e)}
+                receipt.data = {"error": str(e), "status": "failed"}
                 db.commit()
 
     asyncio.run(run_ocr())
@@ -74,22 +87,30 @@ async def upload_receipt(
     db: Session = Depends(get_db)
 ):
     """
-    Step 1: Save placeholder receipt.
-    Step 2: Trigger background OCR task (non-blocking).
+    Step 1: Create placeholder receipt record (flat schema).
+    Step 2: Trigger background OCR task.
     """
     try:
         new_receipt = models.Receipt(
             id=shortuuid.uuid(),
-            data={"status": "processing", "source_image": file.filename},
+            vendor=None,
+            amount=None,
+            currency="IDR",
+            expense_date=None,
+            category=None,
+            data={
+                "status": "processing",
+                "source_image": file.filename,
+            },
         )
         db.add(new_receipt)
         db.commit()
         db.refresh(new_receipt)
 
-        # Schedule OCR
         file_bytes = await file.read()
         background_tasks.add_task(
-            process_receipt_ocr, db, file_bytes, file.filename, file.content_type, new_receipt.id
+            process_receipt_ocr,
+            db, file_bytes, file.filename, file.content_type, new_receipt.id
         )
 
         return new_receipt
@@ -97,6 +118,7 @@ async def upload_receipt(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Receipt upload failed: {e}")
+
 
 
 # ─────────────────────────────
@@ -173,21 +195,45 @@ def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
 # ─────────────────────────────
 # 4️⃣ UPDATE (PATCH)
 # ─────────────────────────────
-@router.patch("/{receipt_id}", response_model=schemas.ReceiptRead)
+@router.patch("/{receipt_id}")
 def update_receipt(receipt_id: str, payload: schemas.ReceiptUpdate, db: Session = Depends(get_db)):
-    receipt = db.query(models.Receipt).filter_by(
-        id=receipt_id, deleted=False).first()
+    receipt = db.query(models.Receipt).filter(
+        models.Receipt.id == receipt_id).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
 
-    update_data = payload.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(receipt, key, value)
+    # Get current data structure
+    new_data = receipt.data.copy() if receipt.data else {}
+    parsed = new_data.get("parsed", {})
+    transaction = parsed.get("transaction", {})
+    summary = transaction.get("summary", {})
+
+    # Only apply provided fields
+    updates = payload.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(
+            status_code=400, detail="No valid fields provided for update")
+
+    # Keep everything flat (single source of truth)
+    for key, value in updates.items():
+        setattr(receipt, key, value)          # Update SQL columns directly
+        # Mirror into JSONB for frontend display if needed
+        new_data[key] = value
+
+        # Optionally keep nested summary if you want to preserve parsed structure
+        if key in ["amount", "currency", "category", "expense_date"]:
+            summary[key] = value
+
+    # Sync nested structures (optional)
+    transaction["summary"] = summary
+    parsed["transaction"] = transaction
+    new_data["parsed"] = parsed
+    receipt.data = new_data
 
     db.commit()
     db.refresh(receipt)
-    return receipt
 
+    return {"message": "Receipt updated successfully", "receipt": receipt.data}
 
 # ─────────────────────────────
 # 5️⃣ SOFT DELETE
