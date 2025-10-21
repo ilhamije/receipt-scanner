@@ -5,8 +5,9 @@ import { useReceipts } from "../hooks/useReceipts";
 import { ReceiptList } from "../pages/ReceiptList";
 import { ReceiptFilterBar } from "../pages/ReceiptFilterBar";
 import { isLoggedIn, requireLogin } from "../utils/auth";
-import { FileUp, Receipt, Loader2 } from "lucide-react";
+import { Receipt, Loader2 } from "lucide-react";
 import { ReceiptUpdateModal } from "./ReceiptUpdate";
+import DropZoneUpload from "./ReceiptDropZone"; // ✅ Modern drop zone
 
 export default function ReceiptsPage() {
     const [filters, setFilters] = useState({});
@@ -17,7 +18,6 @@ export default function ReceiptsPage() {
     const [error, setError] = useState<string | null>(null);
     const [parsed, setParsed] = useState<any>(null);
 
-    // ✅ Modal state
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
 
@@ -33,7 +33,7 @@ export default function ReceiptsPage() {
         try {
             const res = await uploadReceipt(formData);
             setParsed(res.data);
-            setTimeout(() => setPage(0), 500); // reload first page
+            setTimeout(() => setPage(0), 500);
         } catch (err: any) {
             console.error(err);
             setError("Failed to process receipt. Please try again.");
@@ -50,13 +50,11 @@ export default function ReceiptsPage() {
         alert("Receipt saved to your account!");
     };
 
-    // ✅ Open edit modal from list
     const handleEditReceipt = (receipt: any) => {
         setSelectedReceipt(receipt);
         setModalOpen(true);
     };
 
-    // ✅ Refresh list after update
     const handleUpdated = () => {
         setModalOpen(false);
         setTimeout(() => {
@@ -71,27 +69,11 @@ export default function ReceiptsPage() {
                 <Receipt className="w-6 h-6 text-blue-600" />
                 Receipts Overview
             </h1>
-            <p className="text-gray-500 mb-6">
-                Upload your receipts and manage your expense history in one place.
-            </p>
 
-            {/* Filter section */}
-            <div className="bg-white border rounded-xl shadow-sm p-4">
-                <ReceiptFilterBar onFilterChange={setFilters} />
-            </div>
-
-            {/* Upload Section */}
+            {/* ✅ Upload Section with modern DropZone */}
             <div className="bg-blue-50 border border-blue-100 rounded-xl shadow-sm p-6 text-center">
-                <div className="flex flex-col items-center justify-center space-y-3">
-                    <FileUp className="w-8 h-8 text-blue-600" />
-                    <p className="text-gray-700 font-medium">Upload a new receipt</p>
-
-                    <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setFile(e.target.files?.[0] || null)}
-                        className="text-sm text-gray-600 mb-2"
-                    />
+                <div className="flex flex-col items-center justify-center space-y-4">
+                    <DropZoneUpload onFileSelect={setFile} label="Upload Receipt" />
 
                     <button
                         onClick={handleUpload}
@@ -102,11 +84,14 @@ export default function ReceiptsPage() {
                         {uploading ? "Processing..." : "Upload & Scan"}
                     </button>
 
-                    {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                    {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
                 </div>
             </div>
 
-            {/* Parsed result (preview) */}
+            {/* Filter section */}
+            <ReceiptFilterBar onFilterChange={setFilters} />
+
+            {/* Parsed result preview */}
             {parsed && (
                 <div className="bg-white border rounded-xl shadow-md p-5">
                     <h2 className="text-lg font-semibold mb-3 border-b pb-2 text-gray-800">
@@ -154,7 +139,6 @@ export default function ReceiptsPage() {
                     <ReceiptList receipts={data} onEdit={handleEditReceipt} refetch={refetch} />
                 )}
 
-                {/* Pagination */}
                 <div className="flex justify-center gap-3 mt-6">
                     <button
                         disabled={page === 0}
@@ -173,7 +157,6 @@ export default function ReceiptsPage() {
                 </div>
             </div>
 
-            {/* ✅ Update Modal */}
             <ReceiptUpdateModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}

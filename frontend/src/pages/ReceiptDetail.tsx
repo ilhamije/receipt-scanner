@@ -1,14 +1,14 @@
 // src/pages/ReceiptDetail.tsx
 import React, { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { deleteReceipt } from "../services/api"; // ✅ centralized API
+import { deleteReceipt, getReceiptDetail } from "../services/api";
 import type { Receipt } from "./ReceiptList";
 
 interface ReceiptDetailProps {
     receipt: Receipt;
     onClose: () => void;
-    onUpdated?: () => void; // trigger refresh from parent
-    onEdit?: (receipt: Receipt) => void; // optional — open update modal
+    onUpdated?: () => void;
+    onEdit?: (receipt: Receipt) => void;
 }
 
 export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
@@ -20,6 +20,24 @@ export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
     const modalRef = useRef<HTMLDivElement | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [detail, setDetail] = useState<Receipt | null>(null);
+
+    // 🧠 Fetch full detail on open
+    useEffect(() => {
+        const fetchDetail = async () => {
+            try {
+                const res = await getReceiptDetail(receipt.id);
+                setDetail(res.data);
+            } catch (err) {
+                console.error("Failed to fetch receipt detail:", err);
+                toast.error("Failed to load receipt details");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetail();
+    }, [receipt.id]);
 
     // ESC to close
     useEffect(() => {
@@ -44,7 +62,7 @@ export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
         try {
             await deleteReceipt(receipt.id);
             toast.success("Receipt deleted successfully");
-            if (onUpdated) onUpdated();
+            onUpdated?.();
             onClose();
         } catch (err) {
             console.error(err);
@@ -54,6 +72,27 @@ export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
             setConfirmDelete(false);
         }
     };
+
+    // ✅ Use detail (fetched) or fallback to list item
+    const r = detail || receipt;
+    const data = r.data || {};
+    const vendor = data.vendor || r.vendor || "—";
+    const amount = data.amount || r.amount || null;
+    const currency = data.currency || r.currency || "IDR";
+    const category = data.category || r.category || "—";
+    const expenseDate = data.expense_date || r.expense_date || "—";
+    const createdAt = new Date(r.created_at).toLocaleString();
+    const items = data.items || [];
+
+    if (loading) {
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
+                    <p className="text-gray-600">Loading receipt details...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div
@@ -82,47 +121,70 @@ export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
                 <div className="space-y-3 text-sm text-gray-700">
                     <div className="flex justify-between">
                         <span className="font-medium">Vendor:</span>
-                        <span>{receipt.vendor || "—"}</span>
+                        <span>{vendor}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-medium">Amount:</span>
                         <span>
-                            {receipt.currency}{" "}
-                            {receipt.amount
-                                ? receipt.amount.toLocaleString()
+                            {amount
+                                ? `${currency} ${Number(amount).toLocaleString()}`
                                 : "—"}
                         </span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-medium">Category:</span>
-                        <span>{receipt.category || "—"}</span>
+                        <span>{category || "—"}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-medium">Expense Date:</span>
-                        <span>
-                            {receipt.expense_date
-                                ? new Date(receipt.expense_date).toLocaleDateString()
-                                : "—"}
-                        </span>
+                        <span>{expenseDate}</span>
                     </div>
                     <div className="flex justify-between">
                         <span className="font-medium">Created At:</span>
-                        <span>
-                            {new Date(receipt.created_at).toLocaleString()}
-                        </span>
+                        <span>{createdAt}</span>
                     </div>
 
-                    {/* Optional parsed details */}
-                    {receipt.data?.parsed?.transaction?.items?.length > 0 && (
-                        <div className="mt-4">
-                            <p className="font-medium mb-1">Items:</p>
-                            <ul className="list-disc list-inside text-gray-600 text-sm">
-                                {receipt.data.parsed.transaction.items.map((item: any, i: number) => (
-                                    <li key={i}>
-                                        {item.name} — {item.category || "General"} ({item.quantity || 1}×)
-                                    </li>
-                                ))}
-                            </ul>
+                    {/* 🧾 Items Table */}
+                    {items.length > 0 && (
+                        <div className="mt-5 border-t pt-3">
+                            <p className="font-medium mb-2">Items:</p>
+                            <div className="overflow-x-auto max-h-60">
+                                <table className="w-full text-sm border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-100 text-gray-700">
+                                            <th className="text-left py-1.5 px-2">Item</th>
+                                            <th className="text-right py-1.5 px-2">Qty</th>
+                                            <th className="text-right py-1.5 px-2">Unit Price</th>
+                                            <th className="text-right py-1.5 px-2">Total</th>
+                                            <th className="text-left py-1.5 px-2">Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {items.map((item: any, i: number) => (
+                                            <tr
+                                                key={i}
+                                                className="border-t border-gray-100 hover:bg-gray-50"
+                                            >
+                                                <td className="py-1.5 px-2">{item.name || "-"}</td>
+                                                <td className="py-1.5 px-2 text-right">
+                                                    {item.quantity || 1}
+                                                </td>
+                                                <td className="py-1.5 px-2 text-right">
+                                                    {item.unit_price
+                                                        ? Number(item.unit_price).toLocaleString()
+                                                        : "-"}
+                                                </td>
+                                                <td className="py-1.5 px-2 text-right">
+                                                    {item.total_price
+                                                        ? Number(item.total_price).toLocaleString()
+                                                        : "-"}
+                                                </td>
+                                                <td className="py-1.5 px-2">{item.category || "-"}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -149,7 +211,7 @@ export const ReceiptDetail: React.FC<ReceiptDetailProps> = ({
                         <>
                             {onEdit && (
                                 <button
-                                    onClick={() => onEdit(receipt)}
+                                    onClick={() => onEdit(r)}
                                     className="px-4 py-2 rounded-md border border-blue-500 text-blue-600 hover:bg-blue-50"
                                 >
                                     Edit

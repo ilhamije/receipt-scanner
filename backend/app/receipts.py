@@ -185,10 +185,30 @@ def list_receipts(
 # ─────────────────────────────
 @router.get("/{receipt_id}", response_model=schemas.ReceiptRead)
 def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
+    """
+    Return single receipt with item details flattened.
+    """
     receipt = db.query(models.Receipt).filter_by(
-        id=receipt_id, deleted=False).first()
+        id=receipt_id, deleted=False
+    ).first()
+
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
+
+    # ✅ Extract items safely from JSONB
+    items = []
+    if receipt.data:
+        items = receipt.data.get("items") or receipt.data.get(
+            "parsed", {}).get("transaction", {}).get("items") or []
+
+    # ✅ Ensure the data object always contains items
+    enriched_data = dict(receipt.data or {})
+    enriched_data["items"] = items
+    print('enriched_data:', enriched_data)
+
+    # ✅ Attach back to the ORM instance for response_model serialization
+    receipt.data = enriched_data
+
     return receipt
 
 

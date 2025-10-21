@@ -16,6 +16,11 @@ export const uploadReceipt = (formData: FormData) =>
         headers: { "Content-Type": "multipart/form-data" },
     });
 
+// Fetch a single receipt detail
+export const getReceiptDetail = (id: string) => {
+    return api.get(`/receipts/${id}`);
+};
+
 // Update an existing receipt (PATCH)
 export const updateReceipt = (id: string, payload: Record<string, any>) =>
     api.patch(`/receipts/${id}`, payload);
