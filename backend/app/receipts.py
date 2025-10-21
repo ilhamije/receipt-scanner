@@ -204,7 +204,6 @@ def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
     # ✅ Ensure the data object always contains items
     enriched_data = dict(receipt.data or {})
     enriched_data["items"] = items
-    print('enriched_data:', enriched_data)
 
     # ✅ Attach back to the ORM instance for response_model serialization
     receipt.data = enriched_data
@@ -215,13 +214,15 @@ def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
 # ─────────────────────────────
 # 4️⃣ UPDATE (PATCH)
 # ─────────────────────────────
-@router.patch("/{receipt_id}")
+@router.patch("/{receipt_id}", response_model=schemas.ReceiptRead)
 def update_receipt(receipt_id: str, payload: schemas.ReceiptUpdate, db: Session = Depends(get_db)):
     """
-    Update Receipt
+    Update receipt fields and items while keeping schema consistent with GET.
     """
     receipt = db.query(models.Receipt).filter(
-        models.Receipt.id == receipt_id).first()
+        models.Receipt.id == receipt_id, models.Receipt.deleted.is_(False)
+    ).first()
+
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
 
@@ -230,28 +231,48 @@ def update_receipt(receipt_id: str, payload: schemas.ReceiptUpdate, db: Session 
         raise HTTPException(
             status_code=400, detail="No valid fields provided for update")
 
-    # ✅ Clone the JSON safely
+    # ✅ Clone the current JSON safely
     new_data = dict(receipt.data or {})
 
+    # ✅ Handle updates
     for key, value in updates.items():
-        # Convert datetime to string for JSON safety
         if isinstance(value, datetime):
             value = value.isoformat()
 
-        # ✅ Update SQL columns if they exist
-        if hasattr(receipt, key):
+        # Update top-level SQL columns if exist
+        if hasattr(receipt, key) and key != "items":
             setattr(receipt, key, value)
 
-        # ✅ Update JSON representation
+        # Update JSON representation
         new_data[key] = value
 
-    # Assign cleaned JSON back
-    receipt.data = new_data
+    # ✅ Handle items array explicitly
+    if "items" in updates:
+        items = updates.get("items", [])
+        if not isinstance(items, list):
+            raise HTTPException(status_code=400, detail="Items must be a list")
+        new_data["items"] = items
 
+        # Optionally auto-sum total for consistency
+        try:
+            total_sum = sum(float(i.get("total_price", 0)) for i in items)
+            receipt.amount = total_sum
+            new_data["amount"] = total_sum
+        except Exception as e:
+            print("⚠️ Failed to sum items total:", e)
+
+    # ✅ Assign updated JSON back
+    receipt.data = new_data
     db.commit()
     db.refresh(receipt)
 
-    return {"message": "Receipt updated successfully", "receipt": receipt.data}
+    # ✅ Enrich items for response consistency (like GET)
+    enriched_data = dict(receipt.data or {})
+    enriched_data["items"] = new_data.get("items", [])
+    receipt.data = enriched_data
+
+    return receipt
+
 
 
 # ─────────────────────────────
