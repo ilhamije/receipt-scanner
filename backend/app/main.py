@@ -1,3 +1,4 @@
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
@@ -9,21 +10,26 @@ from app import receipts
 # ✅ App Initialization
 # ─────────────────────────────
 app = FastAPI(title="Receipt Scanner API")
-app.include_router(receipts.router)
 
 # ─────────────────────────────
 # ✅ CORS Configuration
 # ─────────────────────────────
-origins = [
-    "http://localhost:5173",      # Vite dev server
-    "http://127.0.0.1:5173",      # alternate localhost
-    "http://localhost",           # root for some browsers
-    "http://frontend",            # Docker service name (if used)
+default_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost",
 ]
+
+# Allow adding production origins via env var (comma-separated)
+# Example: CORS_ORIGINS=https://receipt-scanner-xyz.vercel.app,https://my-domain.com
+extra_origins = os.getenv("CORS_ORIGINS", "").split(",")
+extra_origins = [o.strip() for o in extra_origins if o.strip()]
+
+origins = default_origins + extra_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,        # or ["*"] for dev-only wildcard
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,17 +56,4 @@ def health_check(db: Session = Depends(get_db)):
         return {"status": "ok", "database": f"error: {str(e)}"}
 
 
-# ─────────────────────────────
-# ✅ Health check endpoint
-# ─────────────────────────────
-@app.get("/health")
-def health_check(db: Session = Depends(get_db)):
-    """
-    Health check endpoint to verify API and DB connectivity.
-    """
-    try:
-        # simple DB query to ensure connection is alive
-        db.execute("SELECT 1")
-        return {"status": "ok", "database": "connected"}
-    except Exception as e:
-        return {"status": "ok", "database": f"error: {str(e)}"}
+
